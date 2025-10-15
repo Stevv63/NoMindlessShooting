@@ -3,3 +3,6 @@
 /.gradle/
 /gradle/
 /.idea/
+/.vscode/
+/bin/
+/run/
