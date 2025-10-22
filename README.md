@@ -2,7 +2,7 @@
 REQUIRES <a href="https://www.curseforge.com/minecraft/mc-mods/timeless-and-classics-zero">TACZ</a> TO RUN
 </h1>
 
-Note: could be used with the hordes for a more challening experience. 
+Note: could be used with the hordes for a more challenging experience. 
 
 This mod makes each shot matter, if you shoot too much a horde will be triggered at your location.
 
