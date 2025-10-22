@@ -1,7 +1,10 @@
 package stev6.nomindlessshooting;
 
+import static stev6.nomindlessshooting.NoMindlessShooting.LOGGER;
+
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
 
@@ -22,21 +25,19 @@ public class Config {
         BUILDER
             .comment(
                 "Whether to send the noise warning message in the chat or the action bar, true will send it to the chat and false will use the action bar")
-            .define("noiseWarningMessageInChat", true);
+            .define("noiseWarningMessageInChat", false);
 
     HORDE_START_MESSAGE =
         BUILDER
             .comment(
                 "Message for when the horde is alerted by your gun's noise, sent when the threshold is reached.")
-            .define(
-                "hordeStartMsg",
-                "The loud noise attracts a horde of zombies.. You should probably run away.");
+            .define("hordeStartMsg", "The loud noise is attracting zombies..");
 
     HORDE_START_MESSAGE_IN_CHAT =
         BUILDER
             .comment(
                 "Whether to send the horde start message in the chat or the action bar, true will send it to the chat and false will use the action bar")
-            .define("hordeStartMessageInChat", true);
+            .define("hordeStartMessageInChat", false);
 
     BUILDER.pop();
     BUILDER.push("Zombie_Attraction");
@@ -65,9 +66,14 @@ public class Config {
             .comment("How many zombies to spawn, only works with use horde set to false")
             .defineInRange("spawnCount", 5, 1, Integer.MAX_VALUE);
 
+    IGNORE_ENCASED =
+            BUILDER
+                    .comment("Whether to not count shots if the player is encased or not (For simplicity, this works by checking if you are under a block and have no sky light coming to you.)")
+                    .define("ignoreEncased", true);
+
     USE_HORDE =
         BUILDER
-            .comment("EXPERIMENTAL")
+            .comment("HORDELESS MODE MAY HAVE ISSUES, PLEASE REPORT THEM")
             .comment(
                 "Whether to start a horde or use the hordeless mode, useful for multiplayer servers and difficulty handling as the hordeless mode allows you to select the amount of entities")
             .define("useHorde", false);
@@ -89,17 +95,18 @@ public class Config {
   }
 
   private static final ForgeConfigSpec.ConfigValue<String> NOISE_WARNING_MESSAGE;
-  private static final ForgeConfigSpec.ConfigValue<Boolean> NOISE_WARNING_MESSAGE_IN_CHAT;
+  private static final ForgeConfigSpec.BooleanValue NOISE_WARNING_MESSAGE_IN_CHAT;
   private static final ForgeConfigSpec.ConfigValue<String> HORDE_START_MESSAGE;
-  private static final ForgeConfigSpec.ConfigValue<Boolean> HORDE_START_MESSAGE_IN_CHAT;
-  private static final ForgeConfigSpec.ConfigValue<Boolean> IGNORE_SILENCER;
+  private static final ForgeConfigSpec.BooleanValue HORDE_START_MESSAGE_IN_CHAT;
+  private static final ForgeConfigSpec.BooleanValue IGNORE_SILENCER;
   private static final ForgeConfigSpec.LongValue TIME_LIMIT;
   private static final ForgeConfigSpec.LongValue COOLDOWN;
   private static final ForgeConfigSpec.IntValue SPAWN_COUNT;
   private static final ForgeConfigSpec.DoubleValue RADIUS;
   private static final ForgeConfigSpec.IntValue THRESHOLD;
   private static final ForgeConfigSpec.IntValue DURATION;
-  private static final ForgeConfigSpec.ConfigValue<Boolean> USE_HORDE;
+  private static final ForgeConfigSpec.BooleanValue IGNORE_ENCASED;
+  private static final ForgeConfigSpec.BooleanValue USE_HORDE;
 
   public static int threshold;
   public static double radius;
@@ -109,6 +116,7 @@ public class Config {
   public static String hordeStartMessage;
   public static int duration;
   public static boolean ignoreSilencer;
+  public static boolean ignoreEncased;
   public static boolean useHorde;
   public static int spawnCount;
   public static boolean noiseWarningMessageInChat;
@@ -124,16 +132,18 @@ public class Config {
     cooldown = COOLDOWN.get();
     timeLimit = TIME_LIMIT.get();
     ignoreSilencer = IGNORE_SILENCER.get();
+    ignoreEncased = IGNORE_ENCASED.get();
     useHorde = USE_HORDE.get();
     spawnCount = SPAWN_COUNT.get();
     noiseWarningMessage = NOISE_WARNING_MESSAGE.get();
     noiseWarningMessageInChat = NOISE_WARNING_MESSAGE_IN_CHAT.get();
     hordeStartMessage = HORDE_START_MESSAGE.get();
     hordeStartMessageInChat = HORDE_START_MESSAGE_IN_CHAT.get();
-  }
 
-  @SubscribeEvent
-  static void onReload(final ModConfigEvent.Reloading event) {
-    onLoad(event);
+    if (useHorde && !ModList.get().isLoaded("hordes")) {
+      useHorde = false;
+      LOGGER.warn(
+          "The hordes mod wasn't found but the config is set to use it. Defaulting to not use the hordes.");
+    }
   }
 }

@@ -12,9 +12,12 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
@@ -27,7 +30,8 @@ public class TacZListener {
   public void onFire(GunShootEvent e) {
     if (e.getLogicalSide().isClient()) return;
     if (!(e.getShooter() instanceof ServerPlayer p)) return;
-    if (trigger.isHordeOngoing(p)) return;
+    if (Config.ignoreEncased && isEncased(p)) return;
+    if (Config.useHorde && TheHordesIntegration.isHordeOngoing(p)) return;
 
     ItemStack gun = e.getGunItemStack();
     var iGun = IGun.getIGunOrNull(gun);
@@ -72,16 +76,17 @@ public class TacZListener {
     }
 
     if (data.count >= Config.threshold) {
-      if (!Config.hordeStartMessage.isEmpty()) {
-        p.displayClientMessage(
-            Component.literal(Config.hordeStartMessage)
-                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD),
-            !Config.hordeStartMessageInChat);
-      }
       trigger.trigger(p);
       data.lastTrigger = now;
       data.count = 0;
     }
+  }
+
+  private static boolean isEncased(ServerPlayer p) {
+    BlockPos pos = p.blockPosition();
+    return p.level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ())
+            > pos.getY() + 1
+        && p.level().getBrightness(LightLayer.SKY, pos) == 0;
   }
 
   private static class ShotsData {
