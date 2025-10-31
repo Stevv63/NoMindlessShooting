@@ -1,5 +1,7 @@
 package stev6.nomindlessshooting;
 
+import static stev6.nomindlessshooting.NoMindlessShooting.LOGGER;
+
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.event.common.GunShootEvent;
 import com.tacz.guns.api.item.IGun;
@@ -9,8 +11,6 @@ import com.tacz.guns.resource.modifier.custom.SilenceModifier;
 import it.unimi.dsi.fastutil.Pair;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
-import java.util.WeakHashMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -24,52 +24,44 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 public class TacZListener {
 
   private static final TriggerHandler trigger = new TriggerHandler();
-  private static final Map<ServerPlayer, ShotsData> shots = new WeakHashMap<>();
 
   @SubscribeEvent
   public void onFire(GunShootEvent e) {
     if (e.getLogicalSide().isClient()) return;
     if (!(e.getShooter() instanceof ServerPlayer p)) return;
-    if (Config.ignoreEncased && isEncased(p)) return;
+    if (isSilenced(e.getGunItemStack()) && Config.ignoreSilencer) {
+      LOGGER.debug("Silenced by {}", p.getName());
+      return;
+    }
+    if (Config.ignoreEncased && isEncased(p)) {
+      LOGGER.debug("{} shot but is encased", p.getName());
+      return;
+    }
     if (Config.useHorde && TheHordesIntegration.isHordeOngoing(p)) return;
-
-    ItemStack gun = e.getGunItemStack();
-    var iGun = IGun.getIGunOrNull(gun);
-    if (iGun == null) return;
-
-    var gunData =
-        TimelessAPI.getCommonGunIndex(iGun.getGunId(gun))
-            .map(CommonGunIndex::getGunData)
-            .orElse(null);
-    if (gunData == null) return;
-
-    var cache = new AttachmentCacheProperty();
-    cache.eval(gun, gunData);
-
-    var silenceData = cache.getCache(SilenceModifier.ID);
-    boolean isSuppressed =
-        silenceData instanceof Pair<?, ?> pair && pair.right() instanceof Boolean b && b;
-    if (isSuppressed && Config.ignoreSilencer) return;
 
     Instant now = Instant.now();
     Vec3 pos = p.position();
-    ShotsData data = shots.computeIfAbsent(p, k -> new ShotsData());
+    ShotsData data = NoMindlessShooting.SHOTS.getUnchecked(p.getUUID());
 
     if (data.lastTrigger != null
         && Duration.between(data.lastTrigger, now).toSeconds() < Config.cooldown) return;
 
-    if (data.lastPos == null
-        || data.lastTime == null
-        || Duration.between(data.lastTime, now).toSeconds() > Config.timeLimit
-        || data.lastPos.distanceToSqr(pos) > Config.radius * Config.radius) {
+    if (data.lastPos == null || data.lastPos.distanceToSqr(pos) > Config.radius * Config.radius) {
       data.count = 0;
+
+      if (data.lastPos == null) {
+        LOGGER.debug("No last position data available for {}, resetting shot count.", p.getName());
+      } else {
+        LOGGER.debug(
+            "Player {} moved out of their shot counting radius, resetting shot count.",
+            p.getName());
+      }
       data.lastPos = pos;
     }
 
     data.count++;
-    data.lastTime = now;
 
-    if (data.count == (Config.threshold + 1) / 2 && !Config.noiseWarningMessage.isEmpty()) {
+    if (data.count == Config.threshold / 2 && !Config.noiseWarningMessage.isEmpty()) {
       p.displayClientMessage(
           Component.literal(Config.noiseWarningMessage).withStyle(ChatFormatting.DARK_RED),
           !Config.noiseWarningMessageInChat);
@@ -80,6 +72,24 @@ public class TacZListener {
       data.lastTrigger = now;
       data.count = 0;
     }
+
+    LOGGER.debug("Player {} now has {} shots.", p.getName(), data.count);
+  }
+
+  private static boolean isSilenced(ItemStack i) {
+    var iGun = IGun.getIGunOrNull(i);
+    if (iGun == null) return false;
+    var gunData =
+        TimelessAPI.getCommonGunIndex(iGun.getGunId(i))
+            .map(CommonGunIndex::getGunData)
+            .orElse(null);
+    if (gunData == null) return false;
+
+    var cache = new AttachmentCacheProperty();
+    cache.eval(i, gunData);
+
+    var silenceData = cache.getCache(SilenceModifier.ID);
+    return silenceData instanceof Pair<?, ?> pair && Boolean.TRUE.equals(pair.right());
   }
 
   private static boolean isEncased(ServerPlayer p) {
@@ -89,10 +99,9 @@ public class TacZListener {
         && p.level().getBrightness(LightLayer.SKY, pos) == 0;
   }
 
-  private static class ShotsData {
+  static final class ShotsData {
     Vec3 lastPos;
     int count;
     Instant lastTrigger;
-    Instant lastTime;
   }
 }

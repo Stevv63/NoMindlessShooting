@@ -1,5 +1,7 @@
 package stev6.nomindlessshooting;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -16,13 +18,15 @@ import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 
+import static stev6.nomindlessshooting.NoMindlessShooting.LOGGER;
+
 public class TriggerHandler {
 
   public void trigger(ServerPlayer p) {
     if (Config.useHorde) {
       TheHordesIntegration.tryStartHorde(p);
     } else {
-      spawnEntities(p.serverLevel(), p, EntityType.ZOMBIE, Config.spawnCount);
+      spawnEntities(p.serverLevel(), p, Config.spawnCount);
     }
     if (!Config.hordeStartMessage.isEmpty()) {
       p.displayClientMessage(
@@ -32,20 +36,20 @@ public class TriggerHandler {
     }
   }
 
-  public void spawnEntities(
-      ServerLevel level, ServerPlayer p, EntityType<? extends Mob> type, int count) {
-    RandomSource rand = p.level().random;
+  public void spawnEntities(ServerLevel level, ServerPlayer p, int count) {
+    RandomSource rand = level.random;
     int maxTries = count * 10;
     int spawnedCount = 0;
-
+    List<EntityType<?>> mobList = new ArrayList<>(Config.mobs);
     for (int tries = 0; spawnedCount < count && tries < maxTries; tries++) {
       Vec3 spawnPos = calculateSpawn(p, rand, level);
       if (spawnPos == null) continue;
-
+      EntityType<?> type = mobList.get(rand.nextInt(mobList.size()));
       Entity spawnedEntity = type.spawn(level, BlockPos.containing(spawnPos), MobSpawnType.EVENT);
       if (spawnedEntity instanceof Mob mob) {
         mobSetup(mob, p);
         spawnedCount++;
+        LOGGER.debug("Mob number {} out of {} spawned after {} tries", spawnedCount, count, tries);
       }
     }
   }
@@ -64,7 +68,7 @@ public class TriggerHandler {
     BlockPos spawnPos = new BlockPos(posBlock.getX(), y, posBlock.getZ());
 
     if (level.getBlockState(spawnPos.below()).getFluidState().isEmpty()) {
-      return new Vec3(spawnPos.getX(), spawnPos.getY(), spawnPos.getZ());
+      return Vec3.atCenterOf(spawnPos);
     }
     return null;
   }
