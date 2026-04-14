@@ -11,76 +11,95 @@ import com.tacz.guns.resource.modifier.custom.SilenceModifier;
 import it.unimi.dsi.fastutil.Pair;
 import java.time.Duration;
 import java.time.Instant;
-import net.minecraft.ChatFormatting;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public class TacZListener {
 
-  private static final TriggerHandler trigger = new TriggerHandler();
+  private static final TriggerHandler TRIGGER = new TriggerHandler();
+  private static final Map<UUID, ShotsData> SHOTS = new ConcurrentHashMap<>();
+
 
   @SubscribeEvent
   public void onFire(GunShootEvent e) {
     if (e.getLogicalSide().isClient()) return;
     if (!(e.getShooter() instanceof ServerPlayer p)) return;
-    if (isSilenced(e.getGunItemStack()) && Config.ignoreSilencer) {
-      LOGGER.debug("Silenced by {}", p.getName());
+    if (shouldIgnore(e.getGunItemStack())) {
+      LOGGER.debug("Shot by {} ignored", p.getName());
       return;
     }
+
     if (Config.ignoreEncased && isEncased(p)) {
       LOGGER.debug("{} shot but is encased", p.getName());
       return;
     }
+
     if (Config.useHorde && TheHordesIntegration.isHordeOngoing(p)) return;
 
     Instant now = Instant.now();
     Vec3 pos = p.position();
-    ShotsData data = NoMindlessShooting.SHOTS.getUnchecked(p.getUUID());
+    ShotsData data = SHOTS.computeIfAbsent(p.getUUID(), k -> new ShotsData());
 
-    if (data.lastTrigger != null
-        && Duration.between(data.lastTrigger, now).toSeconds() < Config.cooldown) return;
+    if (data.lastTrigger != null && Duration.between(data.lastTrigger, now).toSeconds() < Config.cooldown) {
+      return;
+    }
 
-    if (data.lastPos == null || data.lastPos.distanceToSqr(pos) > Config.radius * Config.radius) {
-      data.count = 0;
-
+    if (data.lastPos == null || data.lastPos.distanceToSqr(pos) > Config.hearingRadius * Config.hearingRadius) {
+      data.shots.clear();
       if (data.lastPos == null) {
         LOGGER.debug("No last position data available for {}, resetting shot count.", p.getName());
       } else {
-        LOGGER.debug(
-            "Player {} moved out of their shot counting radius, resetting shot count.",
-            p.getName());
+        LOGGER.debug("Player {} moved out of their shot counting radius, resetting shot count.", p.getName());
       }
       data.lastPos = pos;
     }
 
-    data.count++;
+    data.shots.removeIf(t -> Duration.between(t, now).toSeconds() > Config.timeLimit);
+    data.shots.addLast(now);
 
-    if (data.count == Config.threshold / 2 && !Config.noiseWarningMessage.isEmpty()) {
-      p.displayClientMessage(
-          Component.literal(Config.noiseWarningMessage).withStyle(ChatFormatting.DARK_RED),
-          !Config.noiseWarningMessageInChat);
+    int count = data.shots.size();
+
+    if (count == Config.threshold / 2 && Config.noiseWarningMessage != null) {
+      p.displayClientMessage(Config.noiseWarningMessage, !Config.noiseWarningMessageInChat);
     }
 
-    if (data.count >= Config.threshold) {
-      trigger.trigger(p);
+    if (count >= Config.threshold) {
+      TRIGGER.trigger(p);
       data.lastTrigger = now;
-      data.count = 0;
+      data.shots.clear();
     }
 
-    LOGGER.debug("Player {} now has {} shots.", p.getName(), data.count);
+    LOGGER.debug("Player {} now has {} shots in the time window.", p.getName(), count);
   }
 
-  private static boolean isSilenced(ItemStack i) {
+  @SubscribeEvent
+  public void onLogout(PlayerEvent.PlayerLoggedOutEvent e) {
+    if (e.getEntity() instanceof ServerPlayer p) SHOTS.remove(p.getUUID());
+  }
+
+  private static boolean shouldIgnore(ItemStack i) {
     var iGun = IGun.getIGunOrNull(i);
     if (iGun == null) return false;
-    var gunData =
-        TimelessAPI.getCommonGunIndex(iGun.getGunId(i))
+
+    var gunId = iGun.getGunId(i);
+
+    if (Config.excludedWeapons.contains(gunId)) return true;
+
+    if (!Config.ignoreSilencer) return false;
+
+    var gunData = TimelessAPI.getCommonGunIndex(gunId)
             .map(CommonGunIndex::getGunData)
             .orElse(null);
     if (gunData == null) return false;
@@ -99,9 +118,9 @@ public class TacZListener {
         && p.level().getBrightness(LightLayer.SKY, pos) == 0;
   }
 
-  static final class ShotsData {
+  private static final class ShotsData {
     Vec3 lastPos;
-    int count;
+    Deque<Instant> shots = new ArrayDeque<>();
     Instant lastTrigger;
   }
 }

@@ -3,9 +3,7 @@ package stev6.nomindlessshooting;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
@@ -28,11 +26,8 @@ public class TriggerHandler {
     } else {
       spawnEntities(p.serverLevel(), p, Config.spawnCount);
     }
-    if (!Config.hordeStartMessage.isEmpty()) {
-      p.displayClientMessage(
-          Component.literal(Config.hordeStartMessage)
-              .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD),
-          !Config.hordeStartMessageInChat);
+    if (Config.hordeStartMessage != null) {
+      p.displayClientMessage(Config.hordeStartMessage, !Config.hordeStartMessageInChat);
     }
   }
 
@@ -56,7 +51,7 @@ public class TriggerHandler {
 
   private Vec3 calculateSpawn(ServerPlayer p, RandomSource rand, ServerLevel level) {
     double angle = rand.nextDouble() * 2 * Math.PI;
-    double distance = 50.0 + rand.nextDouble() * 10.0;
+    double distance = Config.spawnRadius + rand.nextDouble() * 10.0;
     double x = Math.cos(angle) * distance;
     double z = Math.sin(angle) * distance;
 

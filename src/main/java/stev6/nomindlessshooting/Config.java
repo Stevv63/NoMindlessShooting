@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraftforge.common.ForgeConfigSpec;
@@ -27,7 +29,7 @@ public class Config {
         BUILDER
             .comment(
                 "Action bar gun noise warning message, displayed when half of the threshold is reached.")
-            .define("noiseWarningMsg", "This gun is too loud..");
+            .define("noiseWarningMsg", "&4This gun is too loud..");
 
     NOISE_WARNING_MESSAGE_IN_CHAT =
         BUILDER
@@ -39,7 +41,7 @@ public class Config {
         BUILDER
             .comment(
                 "Message for when the horde is alerted by your gun's noise, sent when the threshold is reached.")
-            .define("hordeStartMsg", "The loud noise is attracting zombies..");
+            .define("hordeStartMsg", "&4The loud noise is attracting zombies..");
 
     HORDE_START_MESSAGE_IN_CHAT =
         BUILDER
@@ -63,12 +65,18 @@ public class Config {
     COOLDOWN =
         BUILDER
             .comment("Cooldown between each trigger (in seconds)")
-            .defineInRange("cooldown", 300, 0, Long.MAX_VALUE);
+            .defineInRange("cooldown", 50, 0, Long.MAX_VALUE);
 
-    RADIUS =
-        BUILDER
-            .comment("The radius of the area where zombies can hear your shots")
-            .defineInRange("radius", 50, 0, Double.MAX_VALUE);
+    HEARING_RADIUS =
+            BUILDER
+                    .comment("The radius of the area where zombies can hear your shots, moving out of that radius will reset your shots")
+                    .defineInRange("hearingRadius", 50, 0, Double.MAX_VALUE);
+
+    SPAWN_RADIUS =
+            BUILDER
+                    .comment("The radius around the player where zombies can spawn. Only works with hordeless mode.")
+                    .defineInRange("spawnRadius", 60, 0, Double.MAX_VALUE);
+
     THRESHOLD =
         BUILDER
             .comment("How many shots until a horde is triggered")
@@ -100,6 +108,11 @@ public class Config {
     BUILDER.pop();
     BUILDER.push("Gun");
 
+    EXCLUDED_WEAPONS =
+            BUILDER
+                    .comment("List of TaCZ Gun IDs to ignore, e.g. tacz:ak47")
+                    .defineList("excludedWeapons", List.of(), Config::validateResourceLocationString);
+
     IGNORE_ENCASED =
         BUILDER
             .comment(
@@ -121,23 +134,27 @@ public class Config {
   private static final ForgeConfigSpec.ConfigValue<String> HORDE_START_MESSAGE;
   private static final ForgeConfigSpec.BooleanValue HORDE_START_MESSAGE_IN_CHAT;
   private static final ForgeConfigSpec.BooleanValue IGNORE_SILENCER;
+  private static final ForgeConfigSpec.ConfigValue<List<? extends String>> EXCLUDED_WEAPONS;
   private static final ForgeConfigSpec.LongValue TIME_LIMIT;
   private static final ForgeConfigSpec.LongValue COOLDOWN;
   private static final ForgeConfigSpec.IntValue SPAWN_COUNT;
-  private static final ForgeConfigSpec.DoubleValue RADIUS;
+  private static final ForgeConfigSpec.DoubleValue HEARING_RADIUS;
+  private static final ForgeConfigSpec.DoubleValue SPAWN_RADIUS;
   private static final ForgeConfigSpec.IntValue THRESHOLD;
   private static final ForgeConfigSpec.IntValue DURATION;
   private static final ForgeConfigSpec.BooleanValue IGNORE_ENCASED;
   private static final ForgeConfigSpec.BooleanValue USE_HORDE;
 
   public static int threshold;
-  public static double radius;
+  public static double hearingRadius;
+  public static double spawnRadius;
   public static long cooldown;
   public static long timeLimit;
+  public static Set<ResourceLocation> excludedWeapons;
   public static ResourceLocation hordeSpawnTable;
-  public static String noiseWarningMessage;
+  public static Component noiseWarningMessage;
   public static Set<EntityType<?>> mobs;
-  public static String hordeStartMessage;
+  public static Component hordeStartMessage;
   public static int duration;
   public static boolean ignoreSilencer;
   public static boolean ignoreEncased;
@@ -161,7 +178,8 @@ public class Config {
   @SubscribeEvent
   static void onLoad(final ModConfigEvent event) {
     threshold = THRESHOLD.get();
-    radius = RADIUS.get();
+    hearingRadius = HEARING_RADIUS.get();
+    spawnRadius = SPAWN_RADIUS.get();
     hordeSpawnTable = ResourceLocation.tryParse(HORDE_SPAWNTABLE.get());
     duration = DURATION.get();
     cooldown = COOLDOWN.get();
@@ -170,10 +188,16 @@ public class Config {
     ignoreEncased = IGNORE_ENCASED.get();
     useHorde = USE_HORDE.get();
     spawnCount = SPAWN_COUNT.get();
-    noiseWarningMessage = NOISE_WARNING_MESSAGE.get();
+    var rawNoiseWarning = NOISE_WARNING_MESSAGE.get();
+    noiseWarningMessage = rawNoiseWarning.isEmpty() ? null : Util.parseMessage(rawNoiseWarning);
     noiseWarningMessageInChat = NOISE_WARNING_MESSAGE_IN_CHAT.get();
-    hordeStartMessage = HORDE_START_MESSAGE.get();
+    var rawHordeStart = HORDE_START_MESSAGE.get();
+    hordeStartMessage = rawHordeStart.isEmpty() ? null : Util.parseMessage(rawHordeStart);
     hordeStartMessageInChat = HORDE_START_MESSAGE_IN_CHAT.get();
+    excludedWeapons = EXCLUDED_WEAPONS.get().stream()
+            .map(ResourceLocation::tryParse)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
     mobs =
         MOBS.get().stream()
             .map(ResourceLocation::parse)
