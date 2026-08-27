@@ -1,87 +1,97 @@
 package stev6.nomindlessshooting;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import com.google.common.base.Predicates;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.Vec3;
+import stev6.nomindlessshooting.integration.hordes.TheHordesIntegration;
+
+import java.util.List;
+import java.util.UUID;
 
 import static stev6.nomindlessshooting.NoMindlessShooting.LOGGER;
 
 public class TriggerHandler {
 
-  public void trigger(ServerPlayer p) {
-    if (Config.useHorde) {
-      TheHordesIntegration.tryStartHorde(p);
-    } else {
-      spawnEntities(p.serverLevel(), p, Config.spawnCount);
-    }
-    if (Config.hordeStartMessage != null) {
-      p.displayClientMessage(Config.hordeStartMessage, !Config.hordeStartMessageInChat);
-    }
-  }
+    private static final UUID ATTRACTED_UUID = UUID.fromString("f9fd4f90-4448-408f-a1e5-b0a1613a0a42");
+    private static final AttributeModifier ATTRACTED_MODIFIER = new AttributeModifier(
+            ATTRACTED_UUID,
+            "attracted",
+            70.0,
+            AttributeModifier.Operation.ADDITION
+    );
 
-  public void spawnEntities(ServerLevel level, ServerPlayer p, int count) {
-    RandomSource rand = level.random;
-    int maxTries = count * 10;
-    int spawnedCount = 0;
-    List<EntityType<?>> mobList = new ArrayList<>(Config.mobs);
-    for (int tries = 0; spawnedCount < count && tries < maxTries; tries++) {
-      Vec3 spawnPos = calculateSpawn(p, rand, level);
-      if (spawnPos == null) continue;
-      EntityType<?> type = mobList.get(rand.nextInt(mobList.size()));
-      Entity spawnedEntity = type.spawn(level, BlockPos.containing(spawnPos), MobSpawnType.EVENT);
-      if (spawnedEntity instanceof Mob mob) {
-        mobSetup(mob, p);
-        spawnedCount++;
-        LOGGER.debug("Mob number {} out of {} spawned after {} tries", spawnedCount, count, tries);
-      }
-    }
-  }
-
-  private Vec3 calculateSpawn(ServerPlayer p, RandomSource rand, ServerLevel level) {
-    double angle = rand.nextDouble() * 2 * Math.PI;
-    double distance = Config.spawnRadius + rand.nextDouble() * 10.0;
-    double x = Math.cos(angle) * distance;
-    double z = Math.sin(angle) * distance;
-
-    Vec3 pos = p.position().add(x, 0, z);
-    BlockPos posBlock = BlockPos.containing(pos);
-    int y =
-        level.getHeight(
-            Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, posBlock.getX(), posBlock.getZ());
-    BlockPos spawnPos = new BlockPos(posBlock.getX(), y, posBlock.getZ());
-
-    if (level.getBlockState(spawnPos.below()).getFluidState().isEmpty()) {
-      return Vec3.atCenterOf(spawnPos);
-    }
-    return null;
-  }
-
-  private void mobSetup(Mob mob, ServerPlayer target) {
-    if (mob.getAttribute(Attributes.FOLLOW_RANGE) != null) {
-      Objects.requireNonNull(mob.getAttribute(Attributes.FOLLOW_RANGE))
-          .addPermanentModifier(
-              new AttributeModifier("attracted", 70.0, AttributeModifier.Operation.ADDITION));
+    public void trigger(ServerPlayer p) {
+        if (Config.useHorde) {
+            TheHordesIntegration.tryStartHorde(p);
+        } else {
+            spawnEntities(p.serverLevel(), p, Config.spawnCount);
+        }
+        if (Config.hordeStartMessage != null) {
+            p.displayClientMessage(Config.hordeStartMessage, !Config.hordeStartMessageInChat);
+        }
     }
 
-    if (mob instanceof PathfinderMob pathfinder) {
-      pathfinder.targetSelector.getAvailableGoals().forEach(WrappedGoal::stop);
-      pathfinder.targetSelector.addGoal(1, new HurtByTargetGoal(pathfinder));
-      pathfinder.targetSelector.addGoal(
-          2, new NearestAttackableTargetGoal<>(pathfinder, ServerPlayer.class, true));
+    public void spawnEntities(ServerLevel level, ServerPlayer p, int count) {
+        RandomSource rand = level.random;
+        int maxTries = count * 10;
+        int spawnedCount = 0;
+        List<EntityType<?>> mobs = Config.mobs;
+
+        BlockPos.MutableBlockPos checkPos = new BlockPos.MutableBlockPos();
+
+        for (int tries = 0; spawnedCount < count && tries < maxTries; tries++) {
+            BlockPos spawnPos = calculateSpawn(p, rand, level, checkPos);
+            if (spawnPos == null) continue;
+
+            EntityType<?> type = mobs.get(rand.nextInt(mobs.size()));
+            Entity spawnedEntity = type.spawn(level, spawnPos, MobSpawnType.EVENT);
+            if (spawnedEntity instanceof Mob mob) {
+                setupHostileMob(mob, p);
+                spawnedCount++;
+                LOGGER.debug("Mob number {} out of {} spawned after {} tries", spawnedCount, count, tries);
+            }
+        }
     }
 
-    mob.setTarget(target);
-  }
+    private BlockPos calculateSpawn(ServerPlayer p, RandomSource rand, ServerLevel level, BlockPos.MutableBlockPos checkPos) {
+        double angle = rand.nextDouble() * (2 * Math.PI);
+        double distance = Config.spawnRadius + rand.nextDouble() * 10.0;
+
+        int x = Mth.floor(p.getX() + Math.cos(angle) * distance);
+        int z = Mth.floor(p.getZ() + Math.sin(angle) * distance);
+
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+
+        checkPos.set(x, y - 1, z);
+        if (level.getBlockState(checkPos).getFluidState().isEmpty()) return new BlockPos(x, y, z);
+
+        return null;
+    }
+
+    private void setupHostileMob(Mob mob, ServerPlayer target) {
+        AttributeInstance followRange = mob.getAttribute(Attributes.FOLLOW_RANGE);
+        if (followRange != null) followRange.addPermanentModifier(ATTRACTED_MODIFIER);
+
+
+        if (mob instanceof PathfinderMob pathfinder) {
+            pathfinder.targetSelector.removeAllGoals(Predicates.alwaysTrue());
+            pathfinder.targetSelector.addGoal(1, new HurtByTargetGoal(pathfinder));
+            pathfinder.targetSelector.addGoal(
+                    2,
+                    new NearestAttackableTargetGoal<>(pathfinder, ServerPlayer.class, true)
+            );
+        }
+
+        mob.setTarget(target);
+    }
 }

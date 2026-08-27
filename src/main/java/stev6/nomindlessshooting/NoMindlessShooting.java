@@ -17,13 +17,13 @@ import org.slf4j.Logger;
 
 @Mod(NoMindlessShooting.MODID)
 public class NoMindlessShooting {
-  public static final String MODID = "nomindlessshooting";
-  public static final Logger LOGGER = LogUtils.getLogger();
+    public static final String MODID = "nomindlessshooting";
+    public static final Logger LOGGER = LogUtils.getLogger();
 
-  public NoMindlessShooting(FMLJavaModLoadingContext ctx) {
-    MinecraftForge.EVENT_BUS.register(new TacZListener());
-    ctx.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
-    LOGGER.debug("NoMindlessShooting started.");
-  }
+    public NoMindlessShooting(FMLJavaModLoadingContext ctx) {
+        MinecraftForge.EVENT_BUS.register(new TacZListener());
+        ctx.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        LOGGER.debug("NoMindlessShooting started.");
+    }
 
 }
