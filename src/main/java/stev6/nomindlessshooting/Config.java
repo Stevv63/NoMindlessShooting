@@ -1,23 +1,21 @@
 package stev6.nomindlessshooting;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.config.ModConfigEvent;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static stev6.nomindlessshooting.NoMindlessShooting.LOGGER;
 
-@Mod.EventBusSubscriber(modid = NoMindlessShooting.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class Config {
-    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
+    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
     private static final List<String> DEFAULT_MOBS = List.of("minecraft:zombie");
     private static final List<String> DEFAULT_THRESHOLD_POINTS = List.of(
             "tacz:50bmg=1"
@@ -58,7 +56,7 @@ public class Config {
         MOBS =
                 BUILDER
                         .comment("Choose which mobs to spawn when useHorde is off")
-                        .defineList("mobs", DEFAULT_MOBS, Config::validateResourceLocationString);
+                        .defineList("mobs", DEFAULT_MOBS, () -> "minecraft:zombie", Config::validateResourceLocationString);
 
         TIME_LIMIT =
                 BUILDER
@@ -120,7 +118,7 @@ public class Config {
                                 "The GunId is checked first before the AmmoId. Any GunId/AmmoId not present here will default to 1 point",
                                 "Format: \"namespace:id=points\" (e.g. \"tacz:50bmg=1\")"
                         )
-                        .defineList("gunPoints", DEFAULT_THRESHOLD_POINTS, Config::validateStringDoubleValueString);
+                        .defineListAllowEmpty("gunPoints", DEFAULT_THRESHOLD_POINTS, () -> "", Config::validateStringDoubleValueString);
 
 
         SILENCER_MODIFIER =
@@ -133,12 +131,12 @@ public class Config {
                 BUILDER
                         .comment("Define the silence modifier for a specific silencer AttachmentId",
                                 "Must be a valid silencer's AttachmentId, otherwise it will not count even if it is a valid AttachmentId")
-                        .defineList("silencerModifiers", DEFAULT_SILENCER_MODIFIERS, Config::validateStringDoubleValueString);
+                        .defineListAllowEmpty("silencerModifiers", DEFAULT_SILENCER_MODIFIERS, () -> "", Config::validateStringDoubleValueString);
 
         EXCLUDED_WEAPONS =
                 BUILDER
                         .comment("List of TaCZ Gun IDs to ignore, e.g. tacz:ak47")
-                        .defineList("excludedWeapons", List.of(), Config::validateResourceLocationString);
+                        .defineListAllowEmpty("excludedWeapons", List.of(), () -> "tacz:ak47",Config::validateResourceLocationString);
 
 
         IGNORE_ENCASED =
@@ -155,26 +153,26 @@ public class Config {
         BUILDER.pop();
     }
 
-    private static final ForgeConfigSpec.ConfigValue<String> NOISE_WARNING_MESSAGE;
-    private static final ForgeConfigSpec.ConfigValue<String> HORDE_SPAWNTABLE;
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> MOBS;
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> THRESHOLD_POINTS;
-    private static final ForgeConfigSpec.BooleanValue NOISE_WARNING_MESSAGE_IN_CHAT;
-    private static final ForgeConfigSpec.ConfigValue<String> HORDE_START_MESSAGE;
-    private static final ForgeConfigSpec.BooleanValue HORDE_START_MESSAGE_IN_CHAT;
-    private static final ForgeConfigSpec.BooleanValue IGNORE_SILENCER;
-    private static final ForgeConfigSpec.IntValue SILENCER_MODIFIER;
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> EXCLUDED_WEAPONS;
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> SILENCER_MODIFIERS;
-    private static final ForgeConfigSpec.LongValue TIME_LIMIT;
-    private static final ForgeConfigSpec.LongValue COOLDOWN;
-    private static final ForgeConfigSpec.IntValue SPAWN_COUNT;
-    private static final ForgeConfigSpec.DoubleValue HEARING_RADIUS;
-    private static final ForgeConfigSpec.DoubleValue SPAWN_RADIUS;
-    private static final ForgeConfigSpec.DoubleValue THRESHOLD;
-    private static final ForgeConfigSpec.IntValue DURATION;
-    private static final ForgeConfigSpec.BooleanValue IGNORE_ENCASED;
-    private static final ForgeConfigSpec.BooleanValue USE_HORDE;
+    private static final ModConfigSpec.ConfigValue<String> NOISE_WARNING_MESSAGE;
+    private static final ModConfigSpec.ConfigValue<String> HORDE_SPAWNTABLE;
+    private static final ModConfigSpec.ConfigValue<List<? extends String>> MOBS;
+    private static final ModConfigSpec.ConfigValue<List<? extends String>> THRESHOLD_POINTS;
+    private static final ModConfigSpec.BooleanValue NOISE_WARNING_MESSAGE_IN_CHAT;
+    private static final ModConfigSpec.ConfigValue<String> HORDE_START_MESSAGE;
+    private static final ModConfigSpec.BooleanValue HORDE_START_MESSAGE_IN_CHAT;
+    private static final ModConfigSpec.BooleanValue IGNORE_SILENCER;
+    private static final ModConfigSpec.IntValue SILENCER_MODIFIER;
+    private static final ModConfigSpec.ConfigValue<List<? extends String>> EXCLUDED_WEAPONS;
+    private static final ModConfigSpec.ConfigValue<List<? extends String>> SILENCER_MODIFIERS;
+    private static final ModConfigSpec.LongValue TIME_LIMIT;
+    private static final ModConfigSpec.LongValue COOLDOWN;
+    private static final ModConfigSpec.IntValue SPAWN_COUNT;
+    private static final ModConfigSpec.DoubleValue HEARING_RADIUS;
+    private static final ModConfigSpec.DoubleValue SPAWN_RADIUS;
+    private static final ModConfigSpec.DoubleValue THRESHOLD;
+    private static final ModConfigSpec.IntValue DURATION;
+    private static final ModConfigSpec.BooleanValue IGNORE_ENCASED;
+    private static final ModConfigSpec.BooleanValue USE_HORDE;
 
     public static double threshold;
     public static double hearingRadius;
@@ -197,7 +195,7 @@ public class Config {
     public static boolean noiseWarningMessageInChat;
     public static boolean hordeStartMessageInChat;
 
-    public static final ForgeConfigSpec SPEC = BUILDER.build();
+    public static final ModConfigSpec SPEC = BUILDER.build();
 
     private static boolean validateResourceLocationString(final Object obj) {
         if (obj instanceof final String string) return ResourceLocation.tryParse(string) != null;
@@ -270,8 +268,8 @@ public class Config {
         List<EntityType<?>> parsedMobs = MOBS.get().stream()
                 .map(ResourceLocation::tryParse)
                 .filter(Objects::nonNull)
-                .map(ForgeRegistries.ENTITY_TYPES::getValue)
-                .filter(Objects::nonNull)
+                .map(BuiltInRegistries.ENTITY_TYPE::getOptional)
+                .flatMap(Optional::stream)
                 .distinct()
                 .collect(Collectors.toList());
 

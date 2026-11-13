@@ -2,6 +2,7 @@ package stev6.nomindlessshooting;
 
 import com.google.common.base.Predicates;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -16,18 +17,18 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import stev6.nomindlessshooting.integration.hordes.TheHordesIntegration;
 
 import java.util.List;
-import java.util.UUID;
 
 import static stev6.nomindlessshooting.NoMindlessShooting.LOGGER;
 
 public class TriggerHandler {
 
-    private static final UUID ATTRACTED_UUID = UUID.fromString("f9fd4f90-4448-408f-a1e5-b0a1613a0a42");
+    private static final ResourceLocation ATTRACTED_MODIFIER_ID =
+            ResourceLocation.fromNamespaceAndPath(NoMindlessShooting.MODID, "attracted");
+
     private static final AttributeModifier ATTRACTED_MODIFIER = new AttributeModifier(
-            ATTRACTED_UUID,
-            "attracted",
+            ATTRACTED_MODIFIER_ID,
             70.0,
-            AttributeModifier.Operation.ADDITION
+            AttributeModifier.Operation.ADD_VALUE
     );
 
     public void trigger(ServerPlayer p) {

@@ -9,10 +9,11 @@ package stev6.nomindlessshooting;
 
 
 import com.mojang.logging.LogUtils;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.javafmlmod.FMLModContainer;
 import org.slf4j.Logger;
 
 @Mod(NoMindlessShooting.MODID)
@@ -20,10 +21,10 @@ public class NoMindlessShooting {
     public static final String MODID = "nomindlessshooting";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public NoMindlessShooting(FMLJavaModLoadingContext ctx) {
-        MinecraftForge.EVENT_BUS.register(new TacZListener());
-        ctx.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+    public NoMindlessShooting(FMLModContainer container, IEventBus modBus) {
+        modBus.addListener(Config::onLoad);
+        NeoForge.EVENT_BUS.register(new TacZListener());
+        container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         LOGGER.debug("NoMindlessShooting started.");
     }
-
 }
